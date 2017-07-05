@@ -11,6 +11,10 @@ from multiprocessing import Process, Queue, Pool
 from object_detection.utils import label_map_util
 from object_detection.utils import visualization_utils as vis_util
 
+#Adding raspi
+import imutils
+from imutils.video import VideoStream
+
 CWD_PATH = os.getcwd()
 
 # Path to frozen detection graph. This is the actual model that is used for the object detection.
@@ -94,6 +98,7 @@ if __name__ == '__main__':
                         default=1, help='Number of workers.')
     parser.add_argument('-q-size', '--queue-size', dest='queue_size', type=int,
                         default=5, help='Size of the queue.')
+    parser.add_argument("-p", "--picamera", dest="pi_bool", type=int, default=1,help="whether or not the Raspberry Pi camera should be used")
     args = parser.parse_args()
 
     logger = multiprocessing.log_to_stderr()
@@ -106,13 +111,12 @@ if __name__ == '__main__':
     process.daemon = True
     pool = Pool(args.num_workers, worker, (input_q, output_q))
 
-    video_capture = WebcamVideoStream(src=args.video_source,
-                                      width=args.width,
-                                      height=args.height).start()
+    video_capture = VideoStream(usePiCamera= 1 > 0).start()
+    time.sleep(2.0)
     fps = FPS().start()
 
     fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-    out = cv2.VideoWriter('output.avi',fourcc, 20.0, (352, 288))
+    out = cv2.VideoWriter('output.avi',fourcc, 20.0, (480, 360))
     while True:  # fps._numFrames < 120
         frame = video_capture.read()
         input_q.put(frame)
@@ -120,13 +124,12 @@ if __name__ == '__main__':
         t = time.time()
         print('video output activates')
         x = output_q.get()
-        print('IMPORTANT STUFF TO NOTICE check the following number: \n')
         print(x.shape)
         cv2.imshow('Video', x)
         #out.write(x)
         fps.update()
 
-        #print('[INFO] elapsed time: {:.2f}'.format(time.time() - t))
+        print('[INFO] elapsed time: {:.2f}'.format(time.time() - t))
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

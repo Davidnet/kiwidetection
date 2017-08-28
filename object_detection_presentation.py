@@ -5,6 +5,7 @@ import argparse
 import multiprocessing
 import numpy as np
 import tensorflow as tf
+import urllib.request
 
 from utils import FPS, WebcamVideoStream
 from multiprocessing import Process, Queue, Pool
@@ -87,7 +88,7 @@ def worker(input_q, output_q):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-src', '--source', dest='video_source', type=int,
-                        default=0, help='Device index of the camera.')
+                        default=1, help='Device index of the camera.')
     parser.add_argument('-wd', '--width', dest='width', type=int,
                         default=480, help='Width of the frames in the video stream.')
     parser.add_argument('-ht', '--height', dest='height', type=int,
@@ -108,29 +109,40 @@ if __name__ == '__main__':
     process.daemon = True
     pool = Pool(args.num_workers, worker, (input_q, output_q))
 
-    video_capture = WebcamVideoStream(src=args.video_source,
-                                      width=args.width,
-                                      height=args.height).start()
+    stream = urllib.request.urlopen('http://1.tcp.ngrok.io:21650/stream/video.mjpeg')
+    stream_bytes = bytes()
+
+    #video_capture = WebcamVideoStream(src=args.video_source,
+                                      #width=args.width,
+                                      #height=args.height).start()
     fps = FPS().start()
 
-    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-    out = cv2.VideoWriter('output.avi',fourcc, 20.0, (352, 288))
+    #fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+    #out = cv2.VideoWriter('output.avi',fourcc, 20.0, (352, 288))
     while True:  # fps._numFrames < 120
-        frame = video_capture.read()
-        input_q.put(frame)
+        #frame = video_capture.read()
+        stream_bytes += stream.read(1024)
+        a = stream_bytes.find(b'\xff\xd8')
+        b = stream_bytes.find(b'\xff\xd9')
+        if a != -1 and b != -1:
+            jpg = stream_bytes[a:b+2]
+            stream_bytes = stream_bytes[b+2:]
+            frame_cv2 = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
 
-        t = time.time()
-        print('video output activates')
-        x = output_q.get()
-        print(x.shape)
-        cv2.imshow('Video', x)
-        out.write(x)
-        fps.update()
+            input_q.put(frame_cv2)
 
-        print('[INFO] elapsed time: {:.2f}'.format(time.time() - t))
+            t = time.time()
+            print('video output activates')
+            x = output_q.get()
+            print(x.shape)
+            cv2.imshow('Video', x)
+            #out.write(x)
+            fps.update()
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+            print('[INFO] elapsed time: {:.2f}'.format(time.time() - t))
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
     fps.stop()
     print('[INFO] elapsed time (total): {:.2f}'.format(fps.elapsed()))

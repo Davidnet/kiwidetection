@@ -43,12 +43,10 @@ def detect_objects(image_np, sess, detection_graph):
     classes = detection_graph.get_tensor_by_name('detection_classes:0')
     num_detections = detection_graph.get_tensor_by_name('num_detections:0')
 
-    t = time.time()
     # Actual detection.
     (boxes, scores, classes, num_detections) = sess.run(
         [boxes, scores, classes, num_detections],
         feed_dict={image_tensor: image_np_expanded})
-    print('[INFO] elapsed time detection time: {:.2f}'.format(time.time() - t))
 
     # Visualization of the results of a detection.
     vis_util.visualize_boxes_and_labels_on_image_array(
@@ -58,7 +56,7 @@ def detect_objects(image_np, sess, detection_graph):
         np.squeeze(scores),
         category_index,
         use_normalized_coordinates=True,
-        line_thickness=3)
+        line_thickness=8)
     return image_np
 
 
@@ -96,6 +94,8 @@ if __name__ == '__main__':
                         default=1, help='Number of workers.')
     parser.add_argument('-q-size', '--queue-size', dest='queue_size', type=int,
                         default=5, help='Size of the queue.')
+    parser.add_argument('-v', '--video-path', dest='video_path', type=str,
+                        required=True, help='The video path to process')
     args = parser.parse_args()
 
     logger = multiprocessing.log_to_stderr()
@@ -108,23 +108,23 @@ if __name__ == '__main__':
     process.daemon = True
     pool = Pool(args.num_workers, worker, (input_q, output_q))
 
-    video_capture = WebcamVideoStream(src=args.video_source,
-                                      width=args.width,
-                                      height=args.height).start()
+    video_capture = cv2.VideoCapture(args.video_path)
+    #video_capture = cv2.VideoCapture('light_coco.avi')
     fps = FPS().start()
 
     fourcc = cv2.VideoWriter_fourcc(*'MJPG')
     out = cv2.VideoWriter('output.avi',fourcc, 20.0, (352, 288))
     while True:  # fps._numFrames < 120
-        frame = video_capture.read()
+        ret, frame = video_capture.read()
         input_q.put(frame)
 
         t = time.time()
         print('video output activates')
         x = output_q.get()
+        x = frame
         print(x.shape)
         cv2.imshow('Video', x)
-        out.write(x)
+        #out.write(x)
         fps.update()
 
         print('[INFO] elapsed time: {:.2f}'.format(time.time() - t))
